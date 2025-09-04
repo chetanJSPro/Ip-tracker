@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IP Geolocation Tool - Law Enforcement</title>
+    
+    <!-- Leaflet CSS - MUST load first -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .disclaimer {
+            background: #ff6b6b;
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            text-align: center;
+            font-weight: bold;
+        }
+        
+        .search-section {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            margin-bottom: 30px;
+        }
+        
+        .input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        #ipInput {
+            flex: 1;
+            min-width: 200px;
+            padding: 15px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        
+        #ipInput:focus {
+            outline: none;
+            border-color: #2a5298;
+        }
+        
+        #searchBtn {
+            padding: 15px 30px;
+            background: #2a5298;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: background 0.3s;
+            white-space: nowrap;
+        }
+        
+        #searchBtn:hover {
+            background: #1e3c72;
+        }
+        
+        #searchBtn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .auto-detect-btn {
+            padding: 15px 20px;
+            background: #28a745;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            transition: background 0.3s;
+            white-space: nowrap;
+        }
+        
+        .auto-detect-btn:hover {
+            background: #218838;
+        }
+        
+        .results-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .info-panel {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        
+        .info-panel h3 {
+            color: #2a5298;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #2a5298;
+            padding-bottom: 5px;
+        }
+        
+        .info-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .info-item:last-child {
+            border-bottom: none;
+        }
+        
+        .label {
+            font-weight: bold;
+            color: #555;
+            flex: 1;
+        }
+        
+        .value {
+            color: #333;
+            word-break: break-all;
+            flex: 2;
+            text-align: right;
+        }
+        
+        #map {
+            height: 400px;
+            width: 100%;
+            border-radius: 8px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+        
+        .error {
+            background: #ff6b6b;
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+        
+        .warning {
+            background: #ffa726;
+            color: white;
+            padding: 10px;
+            border-radius: 6px;
+            margin: 10px 0;
+            font-size: 14px;
+        }
+        
+        @media (max-width: 768px) {
+            .results-container {
+                grid-template-columns: 1fr;
+            }
+            
+            .input-group {
+                flex-direction: column;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔍 IP Geolocation OSINT Tool</h1>
+            <p>Law Enforcement Geographic Intelligence</p>
+        </div>
+        
+     
+        
+        <div class="search-section">
+            <h2>IP Geolocation tracker
+
+            </h2>
+            <div class="input-group">
+                <input type="text" id="ipInput" placeholder="Enter IP address (e.g., 8.8.8.8)" maxlength="15">
+                <button id="searchBtn"> Search</button>
+                <button class="auto-detect-btn" id="myIPBtn">Find My IP</button>
+            </div>
+            
+          
+        </div>
+        
+        <div id="results" style="display: none;">
+            <div class="results-container">
+                <div class="info-panel">
+                    <h3> Location Information</h3>
+                    <div id="locationInfo"></div>
+                </div>
+                
+                <div class="info-panel">
+                    <h3> Network Information</h3>
+                    <div id="networkInfo"></div>
+                </div>
+            </div>
+            
+            <div class="info-panel" style="margin-top: 20px;">
+                <h3> Geographic Location</h3>
+                <div id="map"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Leaflet JavaScript - MUST load before our script -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script>
+        // IP Geolocation Tool JavaScript
+        // For educational and authorized law enforcement use only
+
+        let map;
+        let marker;
+        let geoService;
+
+        class IPGeolocation {
+            constructor() {
+                // Free APIs for IP geolocation
+                this.apis = {
+                    primary: 'http://ip-api.com/json/',
+                    backup: 'https://ipapi.co/',
+                    fallback: 'https://freegeoip.app/json/'
+                };
+            }
+
+            initializeMap() {
+                // Check if Leaflet is loaded
+                if (typeof L === 'undefined') {
+                    console.error('Leaflet library not loaded');
+                    return false;
+                }
+                
+                try {
+                    // Initialize Leaflet map
+                    map = L.map('map').setView([39.8283, -98.5795], 4); // Center of US
+                    
+                    // Add OpenStreetMap tiles
+                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                        maxZoom: 19,
+                        attribution: '© OpenStreetMap contributors'
+                    }).addTo(map);
+                    
+                    return true;
+                } catch (error) {
+                    console.error('Error initializing map:', error);
+                    return false;
+                }
+            }
+
+            validateIP(ip) {
+                const ipPattern = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+                return ipPattern.test(ip);
+            }
+
+            classifyIP(ip) {
+                const octets = ip.split('.').map(Number);
+                
+                // Private IP ranges
+                if (octets[0] === 10 || 
+                    (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31) ||
+                    (octets[0] === 192 && octets[1] === 168)) {
+                    return 'Private/Internal';
+                }
+                
+                // Localhost
+                if (octets[0] === 127) {
+                    return 'Localhost';
+                }
+                
+                // Multicast
+                if (octets[0] >= 224 && octets[0] <= 239) {
+                    return 'Multicast';
+                }
+                
+                return 'Public';
+            }
+
+            async getIPInfo(ipAddress) {
+                if (!this.validateIP(ipAddress)) {
+                    throw new Error('Invalid IP address format');
+                }
+
+                console.log(`Looking up IP: ${ipAddress}`);
+
+                try {
+                    // Try primary API (ip-api.com)
+                    const response = await fetch(`${this.apis.primary}${ipAddress}?fields=status,message,continent,continentCode,country,countryCode,region,regionName,city,district,zip,lat,lon,timezone,currency,isp,org,as,asname,mobile,proxy,hosting,query`);
+                    
+                    if (!response.ok) {
+                        throw new Error('Primary API failed');
+                    }
+
+                    const data = await response.json();
+                    
+                    if (data.status === 'fail') {
+                        throw new Error(data.message || 'IP lookup failed');
+                    }
+
+                    return {
+                        success: true,
+                        ip: data.query,
+                        country: data.country,
+                        country_code: data.countryCode,
+                        region: data.regionName,
+                        region_code: data.region,
+                        city: data.city,
+                        latitude: data.lat,
+                        longitude: data.lon,
+                        timezone: data.timezone,
+                        isp: data.isp,
+                        organization: data.org,
+                        as_number: data.as,
+                        as_name: data.asname,
+                        zip_code: data.zip,
+                        mobile: data.mobile || false,
+                        proxy: data.proxy || false,
+                        hosting: data.hosting || false,
+                        continent: data.continent,
+                        currency: data.currency,
+                        ip_type: this.classifyIP(ipAddress)
+                    };
+
+                } catch (error) {
+                    console.error('Primary API failed, trying backup...', error);
+                    
+                    try {
+                        // Try backup API (ipapi.co)
+                        const backupResponse = await fetch(`${this.apis.backup}${ipAddress}/json/`);
+                        const backupData = await backupResponse.json();
+
+                        if (backupData.error) {
+                            throw new Error(backupData.reason || 'Backup API failed');
+                        }
+
+                        return {
+                            success: true,
+                            ip: ipAddress,
+                            country: backupData.country_name,
+                            country_code: backupData.country,
+                            region: backupData.region,
+                            city: backupData.city,
+                            latitude: backupData.latitude,
+                            longitude: backupData.longitude,
+                            timezone: backupData.timezone,
+                            isp: backupData.org,
+                            organization: backupData.org,
+                            zip_code: backupData.postal,
+                            ip_type: this.classifyIP(ipAddress),
+                            mobile: false,
+                            proxy: false,
+                            hosting: false
+                        };
+
+                    } catch (backupError) {
+                        console.error('Backup API also failed:', backupError);
+                        throw new Error('All IP lookup services failed. Please try again later.');
+                    }
+                }
+            }
+
+            updateMap(lat, lng, info) {
+                if (!map) return;
+
+                const position = [parseFloat(lat), parseFloat(lng)];
+
+                // Clear existing marker
+                if (marker) {
+                    map.removeLayer(marker);
+                }
+
+                // Create custom icon
+                const customIcon = L.divIcon({
+                    className: 'custom-marker',
+                    html: `<div style="background: red; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3);"></div>`,
+                    iconSize: [20, 20],
+                    iconAnchor: [10, 10]
+                });
+
+                // Create new marker
+                marker = L.marker(position, { icon: customIcon }).addTo(map);
+
+                // Create popup content
+                const popupContent = `
+                    <div style="padding: 10px; min-width: 200px;">
+                        <h4 style="margin: 0 0 10px 0; color: #2a5298;">📍 Location Details</h4>
+                        <p><strong>City:</strong> ${info.city || 'Unknown'}</p>
+                        <p><strong>Region:</strong> ${info.region || 'Unknown'}</p>
+                        <p><strong>Country:</strong> ${info.country || 'Unknown'}</p>
+                        <p><strong>ISP:</strong> ${info.isp || 'Unknown'}</p>
+                        <p><strong>Coordinates:</strong> ${lat}, ${lng}</p>
+                    </div>
+                `;
+
+                marker.bindPopup(popupContent).openPopup();
+
+                // Center map on the location
+                map.setView(position, 10);
+            }
+        }
+
+        async function searchIP() {
+            if (!geoService) {
+                alert('System not ready. Please wait a moment and try again.');
+                return;
+            }
+
+            const ipInput = document.getElementById('ipInput');
+            const ip = ipInput.value.trim();
+            
+            if (!ip) {
+                alert('Please enter an IP address');
+                return;
+            }
+            
+            if (!geoService.validateIP(ip)) {
+                alert('Please enter a valid IP address');
+                return;
+            }
+            
+            const searchBtn = document.getElementById('searchBtn');
+            searchBtn.innerHTML = ' Searching...';
+            searchBtn.disabled = true;
+            
+            try {
+                const result = await geoService.getIPInfo(ip);
+                
+                if (result.success) {
+                    displayResults(result);
+                } else {
+                    alert('No location data found for this IP address');
+                }
+                
+            } catch (error) {
+                console.error('Lookup error:', error);
+                alert('Error: ' + error.message);
+            } finally {
+                searchBtn.innerHTML = '🔍 Investigate';
+                searchBtn.disabled = false;
+            }
+        }
+
+        function displayResults(data) {
+            const resultsDiv = document.getElementById('results');
+            const locationInfo = document.getElementById('locationInfo');
+            const networkInfo = document.getElementById('networkInfo');
+            
+            // Display location information
+            locationInfo.innerHTML = `
+                <div class="info-item">
+                    <span class="label">IP Address:</span>
+                    <span class="value">${data.ip || 'Unknown'}</span>
+                </div>
+                <div class="info-item">
+                    <span class="label">IP Type:</span>
+                    <span class="value">${data.ip_type || 'Unknown'}</span>
+                </div>
+                <div class="info-item">
+                    <span class="label">Country:</span>
+                    <span class="value">${data.country || 'Unknown'} (${data.country_code || 'N/A'})</span>
+                </div>
+                <div class="info-item">
+                    <span class="label">Region:</span>
+                    <span class="value">${data.region || 'Unknown'}</span>
+                </div>
+                <div class="info-item">
+                    <span class="label">City:</span>
+                    <span class="value">${data.city || 'Unknown'}</span>
+                </div>
+                <div class="info-item">
+                    <span class="label">Coordinates:</span>
+                    <span class="value">${data.latitude || 'Unknown'}, ${data.longitude || 'Unknown'}</span>
+                </div>
+                <div class="info-item">
+                    <span class="label">Timezone:</span>
+                    <span class="value">${data.timezone || 'Unknown'}</span>
+                </div>
+                <div class="info-item">
+                    <span class="label">ZIP Code:</span>
+                    <span class="value">${data.zip_code || 'Unknown'}</span>
+                </div>
+            `;
+            
+            // Display network information
+            networkInfo.innerHTML = `
+                <div class="info-item">
+                    <span class="label">ISP:</span>
+                    <span class="value">${data.isp || 'Unknown'}</span>
+                </div>
+                <div class="info-item">
+                    <span class="label">Organization:</span>
+                    <span class="value">${data.organization || 'Unknown'}</span>
+                </div>
+                <div class="info-item">
+                    <span class="label">AS Number:</span>
+                    <span class="value">${data.as_number || 'Unknown'}</span>
+                </div>
+                <div class="info-item">
+                    <span class="label">AS Name:</span>
+                    <span class="value">${data.as_name || 'Unknown'}</span>
+                </div>
+                <div class="info-item">
+                    <span class="label">Mobile:</span>
+                    <span class="value">${data.mobile ? 'Yes' : 'No'}</span>
+                </div>
+                <div class="info-item">
+                    <span class="label">Proxy/VPN:</span>
+                    <span class="value">${data.proxy ? 'Detected' : 'Not detected'}</span>
+                </div>
+                <div class="info-item">
+                    <span class="label">Hosting:</span>
+                    <span class="value">${data.hosting ? 'Yes' : 'No'}</span>
+                </div>
+                <div class="info-item">
+                    <span class="label">Continent:</span>
+                    <span class="value">${data.continent || 'Unknown'}</span>
+                </div>
+            `;
+            
+            // Update map if coordinates are available
+            if (data.latitude && data.longitude) {
+                geoService.updateMap(data.latitude, data.longitude, data);
+            }
+            
+            // Show results
+            resultsDiv.style.display = 'block';
+            resultsDiv.scrollIntoView({ behavior: 'smooth' });
+            
+            // Log to console for debugging
+            console.log('IP Lookup Results:', data);
+        }
+
+        // Initialize everything when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize the geolocation service
+            geoService = new IPGeolocation();
+            
+            // Initialize map after a short delay
+            setTimeout(() => {
+                if (geoService) {
+                    const mapInitialized = geoService.initializeMap();
+                    if (!mapInitialized) {
+                        console.error('Failed to initialize map');
+                    }
+                }
+            }, 500);
+            
+            // Set up event listeners
+            const ipInput = document.getElementById('ipInput');
+            const searchBtn = document.getElementById('searchBtn');
+            const myIPBtn = document.getElementById('myIPBtn');
+            
+            // Search button click
+            searchBtn.addEventListener('click', searchIP);
+            
+            // Enter key in input
+            ipInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    searchIP();
+                }
+            });
+            
+            // My IP button
+            myIPBtn.addEventListener('click', async function() {
+                try {
+                    const response = await fetch('https://api.ipify.org?format=json');
+                    const data = await response.json();
+                    ipInput.value = data.ip;
+                    // Optionally auto-search after getting IP
+                    // searchIP();
+                } catch (error) {
+                    console.error('Failed to get current IP:', error);
+                    alert('Failed to detect your IP address');
+                }
+            });
+        });
+
+        // Utility functions
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                console.log('Copied to clipboard:', text);
+            }).catch(err => {
+                console.error('Failed to copy:', err);
+            });
+        }
+
+        // Export functions for potential use in other contexts
+        window.IPGeolocationTool = {
+            searchIP,
+            displayResults,
+            copyToClipboard
+        };
+    </script>
+</body>
+</html>
